@@ -265,7 +265,7 @@ def koordinate_linija(linija):
      
 # ucitavanje videa
 frame_num = 0
-cap = cv2.VideoCapture("video-8.avi")
+cap = cv2.VideoCapture("video/video-8.avi")
 cap.set(1, frame_num) # indeksiranje frejmova
 # analiza videa frejm po frejm
 #while True:
