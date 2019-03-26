@@ -19,6 +19,7 @@ from skimage import morphology
 from keras.models import Sequential
 from keras.layers.core import Dense,Activation
 from keras.optimizers import SGD
+from keras.models import model_from_json
 
 import matplotlib.pylab as pylab
 #pylab.rcParams['figure.figsize'] = 16, 12 
@@ -153,7 +154,7 @@ def select_roi(image_orig, image_bin, linija):
         if h < 50 and h > 10 and w > 5:
                brojac+=1
                distanca, blizina = pnt2line((x,y,0), (x1,y1,0), (x2,y2,0))
-               if distanca<2:
+               if distanca<5:
                    lista.append([distanca,blizina,x,y,w,h])
     sorted_lista=[]      
     if len(lista)>0:
@@ -264,146 +265,188 @@ def koordinate_linija(linija):
     return (x1,y1,x2,y2)
      
 # ucitavanje videa
-frame_num = 0
-cap = cv2.VideoCapture("video/video-8.avi")
-cap.set(1, frame_num) # indeksiranje frejmova
-# analiza videa frejm po frejm
-#while True:
-#    frame_num += 1
-ret_val, frame = cap.read()
-
-display_image(frame)
-plt.figure()
-
-siva = my_rgb2gray(frame)
-plt.imshow(siva, 'gray') 
-#display_image(frame_gray)
-#plt.figure()
-kernel = np.ones((3, 3))
-izdvajanje_crvene=frame[:,:,0]
-izdvajanje_zelene=frame[:,:,1]
-
-display_image(izdvajanje_crvene)
-#plt.figure()
-
-erozija1=cv2.erode(izdvajanje_crvene, kernel, iterations=1)
-display_image(erozija1)
-#plt.figure()
-
-display_image(izdvajanje_zelene)
-#plt.figure()
-
-erozija2=cv2.erode(izdvajanje_zelene, kernel, iterations=1)
-display_image(erozija2)
-#plt.figure()
-
-
-ret, image_binarna = cv2.threshold(siva, 93, 255, cv2.THRESH_BINARY) # ret je vrednost praga, image_bin je binarna slika
-#print(ret)
-#plt.imshow(image_bin, 'gray')
-
-kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-#print(kernel)
-img_ero = cv2.erode(image_binarna, kernel, iterations=1)
-img_open = cv2.dilate(img_ero, kernel, iterations=1)
-plt.imshow(img_open, 'gray')
-plt.figure()
-
-lines = cv2.HoughLinesP(img_open,1,np.pi/180,60,50,50)
-#print(lines)
-zelena_linija=lines[0]
-print('Zelena linija',zelena_linija)
-
-ret, image_bin1 = cv2.threshold(izdvajanje_crvene, 93, 255, cv2.THRESH_BINARY) # ret je vrednost praga, image_bin je binarna slika
-#print(ret)
-#plt.imshow(image_bin1, 'gray')
-
-img_ero1 = cv2.erode(image_bin1, kernel, iterations=1)
-img_open1 = cv2.dilate(img_ero1, kernel, iterations=1)
-plt.imshow(img_open1, 'gray')
-plt.figure()
-
-lines = cv2.HoughLinesP(img_open1,1,np.pi/180,60,50,50)
-#print(lines)
-crvena_linija=lines[0]
-print('Crvena linija',crvena_linija)
-print(crvena_linija[0][0])
-
-x1,x2,y1,y2=koordinate_linija(crvena_linija[0])
-print(x1,x2,y1,y2)
-
-######################################################################
-#img_bw = 255*(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) > 5).astype('uint8')
-#se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
-#se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (2,2))
-#mask = cv2.morphologyEx(img_bw, cv2.MORPH_CLOSE, se1)
-#mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, se2)
-#mask = np.dstack([mask, mask, mask]) / 255
-#out = frame * mask
-#display_image(out)
-#plt.figure()
-#frame1 = morphology.remove_small_objects(green, min_size=64, connectivity=2)
-#dst = cv2.fastNlMeansDenoisingColored(frame,None,10,1,7,10)
-#frame = rgb_image.copy() # Make a copy
-#frame[:,:,0] = 0
-#frame[:,:,2] = 0
-#frame1=morphology.remove_small_objects(frame, min_size=10, connectivity=5)
-#display_image(dst)
-#plt.figure()
-#image_color = load_image('images/brojevi.png')
-#denoised = cv2.fastNlMeansDenoising(
-#        gray, h=18, searchWindowSize=25, templateWindowSize=11)
-
-img = invert(image_bin(image_gray(frame)))
-img_bin = erode(dilate(frame))
-selected_regions, numbers = select_roi1(frame.copy(), img)
-
-display_image(selected_regions)
-plt.figure()
-prom1=0
-prom=0
-while True:
-    frame_num += 1
+    
+    
+json_file = open('model.json', 'r')
+model_json = json_file.read()
+json_file.close()
+ann = model_from_json(model_json)
+ann.load_weights("model.h5")
+    
+file= open("out.txt","w+")
+file.write("RA 220/2015 Dejan Doder\r")
+file.write("file	sum\r")
+    
+    
+for i in range(0,10):
+    
+    cap = cv2.VideoCapture('video/video-'+str(i)+'.avi')
+    frame_num = 0
+    cap.set(1, frame_num) # indeksiranje frejmova
+    # analiza videa frejm po frejm
+    #while True:
+    #    frame_num += 1
     ret_val, frame = cap.read()
     
-    if not ret_val:
-        break
+    #display_image(frame)
+    #plt.figure()
     
-    binarna=image_bin(image_gray(frame))
-   
-    #binarna=cv2.dilate(cv2.erode(binarna, kernel, iterations=1), kerneldil, iterations=1)
-    #binarna = cv2.morphologyEx(binarna, cv2.MORPH_OPEN, kernel)
-    #selektovanje regiona koji prelaze preko crvene linije
-    image_orig, num=select_roi(frame,binarna,crvena_linija)
-    #print(num)
-    for reg in num:
-        
-        x,y=hist(reg)
-        #print(y)
-        
-        prom=y[-1]
-        if prom==prom1:
-            display_image(image_orig)
-            plt.figure()
-        
-    prom1=prom  
-    #selektovanje regiona koji prelaze preko zelene linije
-    image_orig1, num1 = select_roi(frame, binarna, zelena_linija)
+    siva = my_rgb2gray(frame)
+    #plt.imshow(siva, 'gray') 
+    #display_image(frame_gray)
+    #plt.figure()
+    kernel = np.ones((3, 3))
+    izdvajanje_crvene=frame[:,:,0]
+    izdvajanje_zelene=frame[:,:,1]
     
-    for reg in num1:
-        display_image(image_orig1)
-        plt.figure()
+    #display_image(izdvajanje_crvene)
+    #plt.figure()
+    
+    erozija1=cv2.erode(izdvajanje_crvene, kernel, iterations=1)
+    #display_image(erozija1)
+    #plt.figure()
+    
+    #display_image(izdvajanje_zelene)
+    #plt.figure()
+    
+    erozija2=cv2.erode(izdvajanje_zelene, kernel, iterations=1)
+    #display_image(erozija2)
+    #plt.figure()
+    
+    
+    ret, image_binarna = cv2.threshold(siva, 93, 255, cv2.THRESH_BINARY) # ret je vrednost praga, image_bin je binarna slika
+    #print(ret)
+    #plt.imshow(image_bin, 'gray')
+    
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    #print(kernel)
+    img_ero = cv2.erode(image_binarna, kernel, iterations=1)
+    img_open = cv2.dilate(img_ero, kernel, iterations=1)
+    #plt.imshow(img_open, 'gray')
+    #plt.figure()
+    
+    lines = cv2.HoughLinesP(img_open,1,np.pi/180,60,50,50)
+    #print(lines)
+    zelena_linija=lines[0]
+    print('Zelena linija',zelena_linija)
+    
+    ret, image_bin1 = cv2.threshold(izdvajanje_crvene, 93, 255, cv2.THRESH_BINARY) # ret je vrednost praga, image_bin je binarna slika
+    #print(ret)
+    #plt.imshow(image_bin1, 'gray')
+    
+    img_ero1 = cv2.erode(image_bin1, kernel, iterations=1)
+    img_open1 = cv2.dilate(img_ero1, kernel, iterations=1)
+    #plt.imshow(img_open1, 'gray')
+    #plt.figure()
+    
+    lines = cv2.HoughLinesP(img_open1,1,np.pi/180,60,50,50)
+    #print(lines)
+    crvena_linija=lines[0]
+    print('Crvena linija',crvena_linija)
+   # print(crvena_linija[0][0])
+    
+    x1,x2,y1,y2=koordinate_linija(crvena_linija[0])
+    print(x1,x2,y1,y2)
+    
+    ######################################################################
+    #img_bw = 255*(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) > 5).astype('uint8')
+    #se1 = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
+    #se2 = cv2.getStructuringElement(cv2.MORPH_RECT, (2,2))
+    #mask = cv2.morphologyEx(img_bw, cv2.MORPH_CLOSE, se1)
+    #mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, se2)
+    #mask = np.dstack([mask, mask, mask]) / 255
+    #out = frame * mask
+    #display_image(out)
+    #plt.figure()
+    #frame1 = morphology.remove_small_objects(green, min_size=64, connectivity=2)
+    #dst = cv2.fastNlMeansDenoisingColored(frame,None,10,1,7,10)
+    #frame = rgb_image.copy() # Make a copy
+    #frame[:,:,0] = 0
+    #frame[:,:,2] = 0
+    #frame1=morphology.remove_small_objects(frame, min_size=10, connectivity=5)
+    #display_image(dst)
+    #plt.figure()
+    #image_color = load_image('images/brojevi.png')
+    #denoised = cv2.fastNlMeansDenoising(
+    #        gray, h=18, searchWindowSize=25, templateWindowSize=11)
+    
+    img = invert(image_bin(image_gray(frame)))
+    img_bin = erode(dilate(frame))
+    selected_regions, numbers = select_roi1(frame.copy(), img)
+    
+    #display_image(selected_regions)
+   # plt.figure()
+    prom1=0
+    prom=0
+    
+    konacan_rez=0
 
-   # for reg in numbers: 
-   #     display_image(reg)
-   #     plt.figure()
+    brojevi_crvena_linija=[]
+    brojevi_zelena_linija=[]
+    while True:
+        frame_num += 1
+        ret_val, frame = cap.read()
         
-    if frame_num == 200:
-        break
+        if not ret_val:
+            break
+        
+        binarna=image_bin(image_gray(frame))
+       
+        #binarna=cv2.dilate(cv2.erode(binarna, kernel, iterations=1), kerneldil, iterations=1)
+        #binarna = cv2.morphologyEx(binarna, cv2.MORPH_OPEN, kernel)
+        #selektovanje regiona koji prelaze preko crvene linije
+        image_orig, num=select_roi(frame,binarna,crvena_linija)
+        #print(num)
+        for reg in num:
+            
+            #x,y=hist(reg)
+            #print(y)
+            
+            #prom=y[-1]
+            #if prom==prom1:
+               # display_image(image_orig)
+               # plt.figure()
+            brojevi_crvena_linija.append(reg)
+            
+        prom1=prom  
+        #selektovanje regiona koji prelaze preko zelene linije
+        image_orig1, num1 = select_roi(frame, binarna, zelena_linija)
+        
+        for reg in num1:
+           # display_image(image_orig1)
+           # plt.figure()
+            brojevi_zelena_linija.append(reg)
+            
     
-      
-cap.release()    
-    #x,y=hist(reg)
+       # for reg in numbers: 
+       #     display_image(reg)
+       #     plt.figure()
+            
+        #if frame_num == 200:
+         #   break
+        
+          
+    cap.release()    
+    
+    alphabet = [0,1,2,3,4,5,6,7,8,9]
+    rezultat_plus = ann.predict(np.array(prepare_for_ann(brojevi_crvena_linija),np.float32))
+    niz_plus=display_result(rezultat_plus,alphabet)
+    rezultat_minus = ann.predict(np.array(prepare_for_ann(brojevi_zelena_linija),np.float32))
+    niz_minus=display_result(rezultat_minus,alphabet)
+        #x,y=hist(reg)
+        
+    for broj in niz_plus:
+        konacan_rez+=broj
+            
+    for broj in niz_minus:
+        konacan_rez-=broj
+            
+        #print(display_result(rezultat_minus,alphabet))
+    print(konacan_rez)
+    
+    file.write('video-'+str(i)+'.avi\t' + str(konacan_rez)+'\r')
+
+file.close()
 
 
     # dalje se sa frejmom radi kao sa bilo kojom drugom slikom, npr
