@@ -154,7 +154,7 @@ def select_roi(image_orig, image_bin, linija):
         if h < 50 and h > 10 and w > 5:
                brojac+=1
                distanca, blizina = pnt2line((x,y,0), (x1,y1,0), (x2,y2,0))
-               if distanca<5:
+               if distanca<3:
                    lista.append([distanca,blizina,x,y,w,h])
     sorted_lista=[]      
     if len(lista)>0:
@@ -288,13 +288,8 @@ for i in range(0,10):
     #    frame_num += 1
     ret_val, frame = cap.read()
     
-    #display_image(frame)
-    #plt.figure()
-    
     siva = my_rgb2gray(frame)
-    #plt.imshow(siva, 'gray') 
-    #display_image(frame_gray)
-    #plt.figure()
+    
     kernel = np.ones((3, 3))
     izdvajanje_crvene=frame[:,:,0]
     izdvajanje_zelene=frame[:,:,1]
@@ -303,20 +298,10 @@ for i in range(0,10):
     #plt.figure()
     
     erozija1=cv2.erode(izdvajanje_crvene, kernel, iterations=1)
-    #display_image(erozija1)
-    #plt.figure()
-    
-    #display_image(izdvajanje_zelene)
-    #plt.figure()
     
     erozija2=cv2.erode(izdvajanje_zelene, kernel, iterations=1)
-    #display_image(erozija2)
-    #plt.figure()
-    
     
     ret, image_binarna = cv2.threshold(siva, 93, 255, cv2.THRESH_BINARY) # ret je vrednost praga, image_bin je binarna slika
-    #print(ret)
-    #plt.imshow(image_bin, 'gray')
     
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     #print(kernel)
@@ -374,15 +359,17 @@ for i in range(0,10):
     img_bin = erode(dilate(frame))
     selected_regions, numbers = select_roi1(frame.copy(), img)
     
-    #display_image(selected_regions)
-   # plt.figure()
     prom1=0
     prom=0
+    prom2=0
+    prom3=0
+    novo=0
     
     konacan_rez=0
 
     brojevi_crvena_linija=[]
     brojevi_zelena_linija=[]
+    rezultat=0
     while True:
         frame_num += 1
         ret_val, frame = cap.read()
@@ -391,60 +378,52 @@ for i in range(0,10):
             break
         
         binarna=image_bin(image_gray(frame))
-       
-        #binarna=cv2.dilate(cv2.erode(binarna, kernel, iterations=1), kerneldil, iterations=1)
-        #binarna = cv2.morphologyEx(binarna, cv2.MORPH_OPEN, kernel)
         #selektovanje regiona koji prelaze preko crvene linije
         image_orig, num=select_roi(frame,binarna,crvena_linija)
-        #print(num)
         for reg in num:
-            
-            #x,y=hist(reg)
-            #print(y)
-            
-            #prom=y[-1]
-            #if prom==prom1:
+            x,y=hist(reg)
+            novo=x*y
+            prom=novo[-1]
+            if  prom!=prom1:
                # display_image(image_orig)
                # plt.figure()
-            brojevi_crvena_linija.append(reg)
+               brojevi_crvena_linija.append(reg)
+        prom1=prom
             
-        prom1=prom  
+        #prom1=prom  
         #selektovanje regiona koji prelaze preko zelene linije
         image_orig1, num1 = select_roi(frame, binarna, zelena_linija)
         
         for reg in num1:
-           # display_image(image_orig1)
-           # plt.figure()
-            brojevi_zelena_linija.append(reg)
-            
-    
-       # for reg in numbers: 
-       #     display_image(reg)
-       #     plt.figure()
-            
-        #if frame_num == 200:
-         #   break
-        
-          
+            x,y=hist(reg)
+            novo=x*y
+            prom=novo[-1]
+            if  prom!=prom1:
+                brojevi_zelena_linija.append(reg)
+        prom1=prom
+
     cap.release()    
     
     alphabet = [0,1,2,3,4,5,6,7,8,9]
-    rezultat_plus = ann.predict(np.array(prepare_for_ann(brojevi_crvena_linija),np.float32))
-    niz_plus=display_result(rezultat_plus,alphabet)
-    rezultat_minus = ann.predict(np.array(prepare_for_ann(brojevi_zelena_linija),np.float32))
-    niz_minus=display_result(rezultat_minus,alphabet)
-        #x,y=hist(reg)
+    
+    if not (not brojevi_crvena_linija):
+        rezultat_plus = ann.predict(np.array(prepare_for_ann(brojevi_crvena_linija),np.float32))
+        niz_plus=display_result(rezultat_plus,alphabet)
         
     for broj in niz_plus:
-        konacan_rez+=broj
-            
+        rezultat+=broj
+        
+    if not (not brojevi_zelena_linija):
+        rezultat_minus = ann.predict(np.array(prepare_for_ann(brojevi_zelena_linija),np.float32))
+        niz_minus=display_result(rezultat_minus,alphabet)
+        
+        
     for broj in niz_minus:
-        konacan_rez-=broj
-            
-        #print(display_result(rezultat_minus,alphabet))
-    print(konacan_rez)
+        rezultat-=broj
+
+    print(rezultat)
     
-    file.write('video-'+str(i)+'.avi\t' + str(konacan_rez)+'\r')
+    file.write('video-'+str(i)+'.avi\t' + str(rezultat)+'\r')
 
 file.close()
 
