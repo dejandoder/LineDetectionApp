@@ -144,14 +144,16 @@ def select_roi(image_orig, image_bin, linija):
     sorted_regions = [] # lista sortiranih regiona po x osi (sa leva na desno)
     regions_array = []
     lista=[]
+    
    
     for contour in contours: 
         
         x,y,w,h = cv2.boundingRect(contour)
+        area = cv2.contourArea(contour)
         
         
         
-        if h < 50 and h > 10 and w > 5:
+        if h < 50 and h > 10 and w > 5 and area>100:
                brojac+=1
                distanca, blizina = pnt2line((x,y,0), (x1,y1,0), (x2,y2,0))
                if distanca<3:
@@ -263,9 +265,8 @@ def koordinate_linija(linija):
     y2=linija[3]
      
     return (x1,y1,x2,y2)
-     
-# ucitavanje videa
-    
+
+# citanje obucenog modela i upis u fajl
     
 json_file = open('model.json', 'r')
 model_json = json_file.read()
@@ -276,9 +277,10 @@ ann.load_weights("model.h5")
 file= open("out.txt","w+")
 file.write("RA 220/2015 Dejan Doder\r")
 file.write("file	sum\r")
+
+#prolaz kroz video snimke i analiza frejm po frejm
     
-    
-for i in range(0,10):
+for i in range(0,1):
     
     cap = cv2.VideoCapture('video/video-'+str(i)+'.avi')
     frame_num = 0
@@ -331,7 +333,7 @@ for i in range(0,10):
    # print(crvena_linija[0][0])
     
     x1,x2,y1,y2=koordinate_linija(crvena_linija[0])
-    print(x1,x2,y1,y2)
+    #print(x1,x2,y1,y2)
     
     ######################################################################
     #img_bw = 255*(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) > 5).astype('uint8')
@@ -358,18 +360,17 @@ for i in range(0,10):
     img = invert(image_bin(image_gray(frame)))
     img_bin = erode(dilate(frame))
     selected_regions, numbers = select_roi1(frame.copy(), img)
-    
-    prom1=0
-    prom=0
-    prom2=0
-    prom3=0
-    novo=0
-    
-    konacan_rez=0
+
+    broj_piksela=[0,0]
+    broj_piksela_minus=[0,0]
 
     brojevi_crvena_linija=[]
     brojevi_zelena_linija=[]
+    broj_crnih=0
+    broj_bijelih=0
     rezultat=0
+    broj=[]
+    zbir_piksela=[]
     while True:
         frame_num += 1
         ret_val, frame = cap.read()
@@ -377,34 +378,53 @@ for i in range(0,10):
         if not ret_val:
             break
         
+        
+        
         binarna=image_bin(image_gray(frame))
         #selektovanje regiona koji prelaze preko crvene linije
         image_orig, num=select_roi(frame,binarna,crvena_linija)
         for reg in num:
-            x,y=hist(reg)
-            novo=x*y
-            prom=novo[-1]
-            if  prom!=prom1:
-               # display_image(image_orig)
-               # plt.figure()
-               brojevi_crvena_linija.append(reg)
-        prom1=prom
             
-        #prom1=prom  
+            x,y=hist(reg)
+            #print(reg[:][0])
+#            if reg.all()==255:
+#                broj_crnih+=broj_crnih
+#            else:
+#                broj_bijelih+=broj_bijelih
+#            zbir_piksela=[broj_crnih,broj_bijelih]
+#            print(zbir_piksela)
+                
+            
+            for i in len(reg):
+                for j in len(reg):
+                    if(reg[i][j]==255):
+                        broj_crnih+=broj_crnih
+                    else:
+                        broj_bijelih+=broj_bijelih
+            zbir_piksela=[broj_crnih,broj_bijelih]
+            print(zbir_piksela)
+                
+           
+            broj_piksela.append(y[-1])
+            if (abs(y[-1]-(broj_piksela[-1]))<10 or abs(y[-1]-(broj_piksela[-2]))<10 ):
+                brojevi_crvena_linija.append(reg)
+                display_image(reg)
+                plt.figure()
+
         #selektovanje regiona koji prelaze preko zelene linije
         image_orig1, num1 = select_roi(frame, binarna, zelena_linija)
         
         for reg in num1:
             x,y=hist(reg)
-            novo=x*y
-            prom=novo[-1]
-            if  prom!=prom1:
+            broj_piksela_minus.append(y[-1])
+            if (abs(y[-1]-(broj_piksela_minus[-1]))<7 or abs(y[-1]-(broj_piksela_minus[-2]))<7):
                 brojevi_zelena_linija.append(reg)
-        prom1=prom
-
+       
     cap.release()    
     
     alphabet = [0,1,2,3,4,5,6,7,8,9]
+    niz_plus=[]
+    niz_minus=[]
     
     if not (not brojevi_crvena_linija):
         rezultat_plus = ann.predict(np.array(prepare_for_ann(brojevi_crvena_linija),np.float32))
@@ -417,50 +437,15 @@ for i in range(0,10):
         rezultat_minus = ann.predict(np.array(prepare_for_ann(brojevi_zelena_linija),np.float32))
         niz_minus=display_result(rezultat_minus,alphabet)
         
-        
     for broj in niz_minus:
         rezultat-=broj
-
-    print(rezultat)
+        
+    print("Rezultat: ",rezultat)
     
     file.write('video-'+str(i)+'.avi\t' + str(rezultat)+'\r')
 
 file.close()
 
-
-    # dalje se sa frejmom radi kao sa bilo kojom drugom slikom, npr
-#frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-
-
-#for reg in numbers: 
-    
- #   x,y=hist(reg)
-    
-    
-    
-    #display_image(reg)
-    #plt.figure()
-#     sel,broj=select_roi1(reg.copy(),reg)
-#     display_image(sel)
-#     plt.figure()
-#     kernel3 = cv2.getStructuringElement(cv2.MORPH_RECT, (4,8))
-#     reg = cv2.morphologyEx(reg, cv2.MORPH_CLOSE, kernel3)
-     #reg = morphology.remove_small_objects(reg, min_size=20, connectivity=1)
-     #reg = cv2.GaussianBlur(reg, (3, 3), 0)
-#     reg = cv2.fastNlMeansDenoising(reg, None, 4, 7, 21)
-#     display_image(reg)
-#     plt.figure()
-    # kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-#print(kernel)
-     #img_eroo = cv2.erode(reg, kernel2, iterations=3)
-    # img_openn = cv2.dilate(img_eroo, kernel2, iterations=1)
-    
-     #display_image(img_openn)
-    #plt.figure()
-    #plt.imshow(img_openn, 'gray')
-     #display_image(reg)
-     #plt.figure()
 
 
 
