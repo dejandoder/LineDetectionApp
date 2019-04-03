@@ -31,7 +31,7 @@ def image_gray(image):
 def image_bin(image_gs):
     height, width = image_gs.shape[0:2]
     #image_binary = np.ndarray((height, width), dtype=np.uint8)
-    ret,image_bin = cv2.threshold(image_gs, 127, 255, cv2.THRESH_BINARY)
+    ret,image_bin = cv2.threshold(image_gs, 183, 255, cv2.THRESH_BINARY)
     return image_bin
 def invert(image):
     return 255-image
@@ -124,7 +124,7 @@ def train_ann(ann, X_train, y_train):
     ann.fit(X_train, y_train, epochs=2000, batch_size=1, verbose = 0, shuffle=False) 
       
     return ann
-
+koor=[0,0]
 def select_roi(image_orig, image_bin, linija):
     '''Oznaciti regione od interesa na originalnoj slici. (ROI = regions of interest)
         Za svaki region napraviti posebnu sliku dimenzija 28 x 28. 
@@ -144,20 +144,26 @@ def select_roi(image_orig, image_bin, linija):
     sorted_regions = [] # lista sortiranih regiona po x osi (sa leva na desno)
     regions_array = []
     lista=[]
-    
-   
+    region_distances = []
+    sorted_rectangles=[]
+      
     for contour in contours: 
         
         x,y,w,h = cv2.boundingRect(contour)
         area = cv2.contourArea(contour)
         
-        
-        
-        if h < 50 and h > 10 and w > 5 and area>100:
+        if (((w > 1 and h > 15) or (w>14 and h>15)) and (w<=30 and h<=30)) and area>=50:
                brojac+=1
-               distanca, blizina = pnt2line((x,y,0), (x1,y1,0), (x2,y2,0))
-               if distanca<3:
-                   lista.append([distanca,blizina,x,y,w,h])
+               distanca, blizina = pnt2line((x-5,y-5,0), (x1,y1,0), (x2,y2,0))
+               if distanca<2:
+                   if abs(x-koor[0])>3 or abs(y-koor[1])>3:
+                       lista.append([distanca,blizina,x,y,w,h])
+                       koor[0]=x
+                       koor[1]=y
+                   
+                   #print(distanca,x,y)
+                   #print(blizina)
+   
     sorted_lista=[]      
     if len(lista)>0:
         sorted_lista=sorted(lista,key=lambda item: item[0])
@@ -168,9 +174,20 @@ def select_roi(image_orig, image_bin, linija):
         cv2.rectangle(image_orig,(x,y),(x+w,y+h),(0,255,0),2)
         regions_array = sorted(regions_array, key=lambda item: item[1][0])
         sorted_regions = sorted_regions = [region[0] for region in regions_array]
+        sorted_rectangles = [region[1] for region in regions_array]
+        
+        
+    # Izdvojiti sortirane parametre opisujućih pravougaonika
+    # Izračunati rastojanja između svih susednih regiona po x osi i dodati ih u region_distances niz
+    for index in range(0, len(sorted_rectangles)-1):
+            current = sorted_rectangles[index]
+            next_rect = sorted_rectangles[index+1]
+            distance = next_rect[0] - (current[0]+current[2]) #X_next - (X_current + W_current)
+            region_distances.append(distance)
+            print("dsd")
         #print(contours) 
     # sortirati sve regione po x osi (sa leva na desno) i smestiti u promenljivu sorted_regions
-    return image_orig, sorted_regions
+    return image_orig, sorted_regions, region_distances
 
 def select_roi1(image_orig, image_bin):
     '''Oznaciti regione od interesa na originalnoj slici. (ROI = regions of interest)
@@ -280,7 +297,7 @@ file.write("file	sum\r")
 
 #prolaz kroz video snimke i analiza frejm po frejm
     
-for i in range(0,1):
+for i in range(0,10):
     
     cap = cv2.VideoCapture('video/video-'+str(i)+'.avi')
     frame_num = 0
@@ -309,13 +326,14 @@ for i in range(0,1):
     #print(kernel)
     img_ero = cv2.erode(image_binarna, kernel, iterations=1)
     img_open = cv2.dilate(img_ero, kernel, iterations=1)
-    #plt.imshow(img_open, 'gray')
-    #plt.figure()
+    plt.imshow(img_open, 'gray')
+    plt.figure()
     
     lines = cv2.HoughLinesP(img_open,1,np.pi/180,60,50,50)
     #print(lines)
     zelena_linija=lines[0]
     print('Zelena linija',zelena_linija)
+    
     
     ret, image_bin1 = cv2.threshold(izdvajanje_crvene, 93, 255, cv2.THRESH_BINARY) # ret je vrednost praga, image_bin je binarna slika
     #print(ret)
@@ -323,10 +341,10 @@ for i in range(0,1):
     
     img_ero1 = cv2.erode(image_bin1, kernel, iterations=1)
     img_open1 = cv2.dilate(img_ero1, kernel, iterations=1)
-    #plt.imshow(img_open1, 'gray')
-    #plt.figure()
+    plt.imshow(img_open1, 'gray')
+    plt.figure()
     
-    lines = cv2.HoughLinesP(img_open1,1,np.pi/180,60,50,50)
+    lines = cv2.HoughLinesP(img_open1,1,np.pi/180,threshold = 60,minLineLength = 50,maxLineGap = 50)
     #print(lines)
     crvena_linija=lines[0]
     print('Crvena linija',crvena_linija)
@@ -371,55 +389,50 @@ for i in range(0,1):
     rezultat=0
     broj=[]
     zbir_piksela=[]
+    y1=[]
     while True:
         frame_num += 1
         ret_val, frame = cap.read()
         
         if not ret_val:
             break
-        
-        
-        
+         
+
         binarna=image_bin(image_gray(frame))
         #selektovanje regiona koji prelaze preko crvene linije
-        image_orig, num=select_roi(frame,binarna,crvena_linija)
+        image_orig, num, a=select_roi(frame,binarna,crvena_linija)
+        
         for reg in num:
+             
+            # display_image(image_orig)
+            # plt.figure()
+             x,y=hist(reg)
+             if (abs(y[-1]-broj_piksela[-1])>8 or abs(y[-1]-(broj_piksela[-2]))>8):   
+                    brojevi_crvena_linija.append(reg)
+                    #display_image(reg)
+                    #plt.figure()
+             broj_piksela.append(y[-1])
             
-            x,y=hist(reg)
-            #print(reg[:][0])
-#            if reg.all()==255:
-#                broj_crnih+=broj_crnih
-#            else:
-#                broj_bijelih+=broj_bijelih
-#            zbir_piksela=[broj_crnih,broj_bijelih]
-#            print(zbir_piksela)
-                
-            
-            for i in len(reg):
-                for j in len(reg):
-                    if(reg[i][j]==255):
-                        broj_crnih+=broj_crnih
-                    else:
-                        broj_bijelih+=broj_bijelih
-            zbir_piksela=[broj_crnih,broj_bijelih]
-            print(zbir_piksela)
-                
-           
-            broj_piksela.append(y[-1])
-            if (abs(y[-1]-(broj_piksela[-1]))<10 or abs(y[-1]-(broj_piksela[-2]))<10 ):
-                brojevi_crvena_linija.append(reg)
-                display_image(reg)
-                plt.figure()
-
         #selektovanje regiona koji prelaze preko zelene linije
-        image_orig1, num1 = select_roi(frame, binarna, zelena_linija)
+        image_orig1, num1, a1= select_roi(frame, binarna, zelena_linija)
+       
         
         for reg in num1:
-            x,y=hist(reg)
-            broj_piksela_minus.append(y[-1])
-            if (abs(y[-1]-(broj_piksela_minus[-1]))<7 or abs(y[-1]-(broj_piksela_minus[-2]))<7):
-                brojevi_zelena_linija.append(reg)
+             
+#             display_image(binarna)
+#             plt.figure()
+#             
+             #display_image(image_orig1)
+             #plt.figure()
+             x,y=hist(reg)
+             if(abs(y[-1]-broj_piksela_minus[-1])>8 or abs(y[-1]-broj_piksela_minus[-2])>8):
+                 brojevi_zelena_linija.append(reg)
+                
+             broj_piksela_minus.append(y[-1])
+            
        
+        #if frame_num==400:
+        #    break
     cap.release()    
     
     alphabet = [0,1,2,3,4,5,6,7,8,9]
@@ -429,6 +442,7 @@ for i in range(0,1):
     if not (not brojevi_crvena_linija):
         rezultat_plus = ann.predict(np.array(prepare_for_ann(brojevi_crvena_linija),np.float32))
         niz_plus=display_result(rezultat_plus,alphabet)
+        print(niz_plus)
         
     for broj in niz_plus:
         rezultat+=broj
@@ -436,6 +450,7 @@ for i in range(0,1):
     if not (not brojevi_zelena_linija):
         rezultat_minus = ann.predict(np.array(prepare_for_ann(brojevi_zelena_linija),np.float32))
         niz_minus=display_result(rezultat_minus,alphabet)
+        print (niz_minus) 
         
     for broj in niz_minus:
         rezultat-=broj
