@@ -14,6 +14,7 @@ import collections
 import argparse
 import math
 from skimage import morphology
+from scipy import signal
 
 # keras
 from keras.models import Sequential
@@ -31,7 +32,7 @@ def image_gray(image):
 def image_bin(image_gs):
     height, width = image_gs.shape[0:2]
     #image_binary = np.ndarray((height, width), dtype=np.uint8)
-    ret,image_bin = cv2.threshold(image_gs, 183, 255, cv2.THRESH_BINARY)
+    ret,image_bin = cv2.threshold(image_gs, 218, 255, cv2.THRESH_BINARY)
     return image_bin
 def invert(image):
     return 255-image
@@ -152,7 +153,7 @@ def select_roi(image_orig, image_bin, linija):
         x,y,w,h = cv2.boundingRect(contour)
         area = cv2.contourArea(contour)
         
-        if (((w > 1 and h > 15) or (w>14 and h>15)) and (w<=30 and h<=30)) and area>=50:
+        if (((w > 2 and h > 15) or (w>14 and h>15)) and (w<=30 and h<=30)) and area>=50:
                brojac+=1
                distanca, blizina = pnt2line((x-5,y-5,0), (x1,y1,0), (x2,y2,0))
                if distanca<2:
@@ -189,29 +190,6 @@ def select_roi(image_orig, image_bin, linija):
     # sortirati sve regione po x osi (sa leva na desno) i smestiti u promenljivu sorted_regions
     return image_orig, sorted_regions, region_distances
 
-def select_roi1(image_orig, image_bin):
-    '''Oznaciti regione od interesa na originalnoj slici. (ROI = regions of interest)
-        Za svaki region napraviti posebnu sliku dimenzija 28 x 28. 
-        Za označavanje regiona koristiti metodu cv2.boundingRect(contour).
-        Kao povratnu vrednost vratiti originalnu sliku na kojoj su obeleženi regioni
-        i niz slika koje predstavljaju regione sortirane po rastućoj vrednosti x ose
-    '''
-    img, contours, hierarchy = cv2.findContours(image_bin.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    sorted_regions = [] # lista sortiranih regiona po x osi (sa leva na desno)
-    regions_array = []
-    for contour in contours: 
-        x,y,w,h = cv2.boundingRect(contour) #koordinate i velicina granicnog pravougaonika
-        area = cv2.contourArea(contour)
-        if area > 100 and h < 50 and h > 10 and w > 5:
-            
-            # kopirati [y:y+h+1, x:x+w+1] sa binarne slike i smestiti u novu sliku
-            # označiti region pravougaonikom na originalnoj slici (image_orig) sa rectangle funkcijom
-            region = image_bin[y:y+h+1,x:x+w+1]
-            regions_array.append([resize_region(region), (x,y,w,h)])       
-            cv2.rectangle(image_orig,(x,y),(x+w,y+h),(0,255,0),2)
-    regions_array = sorted(regions_array, key=lambda item: item[1][0])
-    sorted_regions = sorted_regions = [region[0] for region in regions_array]
-    
     # sortirati sve regione po x osi (sa leva na desno) i smestiti u promenljivu sorted_regions
     return image_orig, sorted_regions
 def hist(image):
@@ -283,6 +261,18 @@ def koordinate_linija(linija):
      
     return (x1,y1,x2,y2)
 
+def saberi(niz):
+    rez=0
+    for broj in niz:
+        rez+=broj  
+    return rez
+
+def oduzmi(niz):
+    rez=0
+    for broj in niz:
+        rez-=broj  
+    return rez
+
 # citanje obucenog modela i upis u fajl
     
 json_file = open('model.json', 'r')
@@ -313,9 +303,6 @@ for i in range(0,10):
     izdvajanje_crvene=frame[:,:,0]
     izdvajanje_zelene=frame[:,:,1]
     
-    #display_image(izdvajanje_crvene)
-    #plt.figure()
-    
     erozija1=cv2.erode(izdvajanje_crvene, kernel, iterations=1)
     
     erozija2=cv2.erode(izdvajanje_zelene, kernel, iterations=1)
@@ -326,8 +313,8 @@ for i in range(0,10):
     #print(kernel)
     img_ero = cv2.erode(image_binarna, kernel, iterations=1)
     img_open = cv2.dilate(img_ero, kernel, iterations=1)
-    plt.imshow(img_open, 'gray')
-    plt.figure()
+    #plt.imshow(img_open, 'gray')
+    #plt.figure()
     
     lines = cv2.HoughLinesP(img_open,1,np.pi/180,60,50,50)
     #print(lines)
@@ -341,8 +328,8 @@ for i in range(0,10):
     
     img_ero1 = cv2.erode(image_bin1, kernel, iterations=1)
     img_open1 = cv2.dilate(img_ero1, kernel, iterations=1)
-    plt.imshow(img_open1, 'gray')
-    plt.figure()
+    #plt.imshow(img_open1, 'gray')
+    #plt.figure()
     
     lines = cv2.HoughLinesP(img_open1,1,np.pi/180,threshold = 60,minLineLength = 50,maxLineGap = 50)
     #print(lines)
@@ -374,86 +361,70 @@ for i in range(0,10):
     #image_color = load_image('images/brojevi.png')
     #denoised = cv2.fastNlMeansDenoising(
     #        gray, h=18, searchWindowSize=25, templateWindowSize=11)
+    #
+   
+    #plt.imshow(image_blur, 'gray')
     
     img = invert(image_bin(image_gray(frame)))
     img_bin = erode(dilate(frame))
-    selected_regions, numbers = select_roi1(frame.copy(), img)
 
     broj_piksela=[0,0]
     broj_piksela_minus=[0,0]
 
     brojevi_crvena_linija=[]
     brojevi_zelena_linija=[]
-    broj_crnih=0
-    broj_bijelih=0
     rezultat=0
     broj=[]
-    zbir_piksela=[]
-    y1=[]
+    
     while True:
         frame_num += 1
         ret_val, frame = cap.read()
         
         if not ret_val:
             break
-         
-
-        binarna=image_bin(image_gray(frame))
-        #selektovanje regiona koji prelaze preko crvene linije
+       
+        binarna=invert(image_bin(image_gray(frame)))
+        k_size = 2
+        k = (1./k_size*k_size) * np.ones((k_size, k_size))
         image_orig, num, a=select_roi(frame,binarna,crvena_linija)
         
         for reg in num:
-             
-            # display_image(image_orig)
-            # plt.figure()
+            
              x,y=hist(reg)
-             if (abs(y[-1]-broj_piksela[-1])>8 or abs(y[-1]-(broj_piksela[-2]))>8):   
+             if (abs(y[-1]-broj_piksela[-1])>8 or abs(y[-1]-(broj_piksela[-2]))>8):
+                    #image_blur = signal.convolve2d(reg, k)
                     brojevi_crvena_linija.append(reg)
-                    #display_image(reg)
-                    #plt.figure()
              broj_piksela.append(y[-1])
             
         #selektovanje regiona koji prelaze preko zelene linije
         image_orig1, num1, a1= select_roi(frame, binarna, zelena_linija)
        
-        
         for reg in num1:
              
-#             display_image(binarna)
-#             plt.figure()
-#             
-             #display_image(image_orig1)
-             #plt.figure()
              x,y=hist(reg)
              if(abs(y[-1]-broj_piksela_minus[-1])>8 or abs(y[-1]-broj_piksela_minus[-2])>8):
                  brojevi_zelena_linija.append(reg)
                 
              broj_piksela_minus.append(y[-1])
-            
-       
-        #if frame_num==400:
-        #    break
+
     cap.release()    
     
     alphabet = [0,1,2,3,4,5,6,7,8,9]
-    niz_plus=[]
-    niz_minus=[]
+    plus=[]
+    minus=[]
     
     if not (not brojevi_crvena_linija):
         rezultat_plus = ann.predict(np.array(prepare_for_ann(brojevi_crvena_linija),np.float32))
-        niz_plus=display_result(rezultat_plus,alphabet)
-        print(niz_plus)
-        
-    for broj in niz_plus:
-        rezultat+=broj
-        
+        plus=display_result(rezultat_plus,alphabet)
+        print(plus)
+
     if not (not brojevi_zelena_linija):
         rezultat_minus = ann.predict(np.array(prepare_for_ann(brojevi_zelena_linija),np.float32))
-        niz_minus=display_result(rezultat_minus,alphabet)
-        print (niz_minus) 
+        minus=display_result(rezultat_minus,alphabet)
+        print (minus) 
         
-    for broj in niz_minus:
-        rezultat-=broj
+        
+        rezultat=saberi(plus)+oduzmi(minus)
         
     print("Rezultat: ",rezultat)
     
