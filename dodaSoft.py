@@ -47,12 +47,6 @@ def dilate(image):
 def erode(image):
     kernel = np.ones((3,3)) # strukturni element 3x3 blok
     return cv2.erode(image, kernel, iterations=1)
-
-#def image_bin(image_gs):
-#    ret,image_bin = cv2.threshold(image_gs, 127, 255, cv2.THRESH_BINARY)
-#    return image_bin
-
-#Funkcionalnost implementirana u OCR basic
 def resize_region(region):
     resized = cv2.resize(region,(28,28), interpolation = cv2.INTER_NEAREST)
     return resized
@@ -382,31 +376,32 @@ for i in range(0,10):
         
         if not ret_val:
             break
-       
+        
         binarna=invert(image_bin(image_gray(frame)))
         k_size = 2
         k = (1./k_size*k_size) * np.ones((k_size, k_size))
         image_orig, num, a=select_roi(frame,binarna,crvena_linija)
         
         for reg in num:
-            
              x,y=hist(reg)
              if (abs(y[-1]-broj_piksela[-1])>8 or abs(y[-1]-(broj_piksela[-2]))>8):
-                    #image_blur = signal.convolve2d(reg, k)
-                    brojevi_crvena_linija.append(reg)
+                 image_blur = signal.convolve2d(reg, k)
+                 brojevi_crvena_linija.append(reg)
+                 #display_image(image_orig)
+                 #plt.figure()
              broj_piksela.append(y[-1])
             
         #selektovanje regiona koji prelaze preko zelene linije
         image_orig1, num1, a1= select_roi(frame, binarna, zelena_linija)
        
         for reg in num1:
-             
              x,y=hist(reg)
              if(abs(y[-1]-broj_piksela_minus[-1])>8 or abs(y[-1]-broj_piksela_minus[-2])>8):
                  brojevi_zelena_linija.append(reg)
-                
-             broj_piksela_minus.append(y[-1])
+                 image_blur = signal.convolve2d(reg, k)
 
+             broj_piksela_minus.append(y[-1])
+            
     cap.release()    
     
     alphabet = [0,1,2,3,4,5,6,7,8,9]
