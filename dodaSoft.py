@@ -396,7 +396,7 @@ for i in range(0,10):
        
         for reg in num1:
              x,y=hist(reg)
-             if(abs(y[-1]-broj_piksela_minus[-1])>8 or abs(y[-1]-broj_piksela_minus[-2])>8):
+             if(abs(y[-1]-broj_piksela_minus[-1])>6 or abs(y[-1]-broj_piksela_minus[-2])>6):
                  kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
                  image_blur = signal.convolve2d(reg, k)
                  img_ero = cv2.erode(image_blur, kernel, iterations=1)
