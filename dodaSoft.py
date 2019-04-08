@@ -31,7 +31,7 @@ def image_gray(image):
     return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 def image_bin(image_gs):
     height, width = image_gs.shape[0:2]
-    #image_binary = np.ndarray((height, width), dtype=np.uint8)
+    #image_gs = np.ndarray((height, width), dtype=np.uint8)
     ret,image_bin = cv2.threshold(image_gs, 218, 255, cv2.THRESH_BINARY)
     return image_bin
 def invert(image):
@@ -147,10 +147,10 @@ def select_roi(image_orig, image_bin, linija):
         x,y,w,h = cv2.boundingRect(contour)
         area = cv2.contourArea(contour)
         
-        if (((w > 2 and h > 15) or (w>14 and h>15)) and (w<=30 and h<=30)) and area>=50:
+        if (((w > 2 and h > 15) or (w>18 and h>18)) and (w<=40 and h<=40)) and area>=51:
                brojac+=1
                distanca, blizina = pnt2line((x-5,y-5,0), (x1,y1,0), (x2,y2,0))
-               if distanca<2:
+               if distanca<1.92:
                    if abs(x-koor[0])>3 or abs(y-koor[1])>3:
                        lista.append([distanca,blizina,x,y,w,h])
                        koor[0]=x
@@ -322,8 +322,7 @@ for i in range(0,10):
     
     img_ero1 = cv2.erode(image_bin1, kernel, iterations=1)
     img_open1 = cv2.dilate(img_ero1, kernel, iterations=1)
-    #plt.imshow(img_open1, 'gray')
-    #plt.figure()
+    
     
     lines = cv2.HoughLinesP(img_open1,1,np.pi/180,threshold = 60,minLineLength = 50,maxLineGap = 50)
     #print(lines)
@@ -368,8 +367,7 @@ for i in range(0,10):
     brojevi_crvena_linija=[]
     brojevi_zelena_linija=[]
     rezultat=0
-    broj=[]
-    
+  
     while True:
         frame_num += 1
         ret_val, frame = cap.read()
@@ -378,17 +376,19 @@ for i in range(0,10):
             break
         
         binarna=invert(image_bin(image_gray(frame)))
-        k_size = 2
+        k_size = 1
         k = (1./k_size*k_size) * np.ones((k_size, k_size))
+        
         image_orig, num, a=select_roi(frame,binarna,crvena_linija)
         
         for reg in num:
              x,y=hist(reg)
              if (abs(y[-1]-broj_piksela[-1])>8 or abs(y[-1]-(broj_piksela[-2]))>8):
+                 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
                  image_blur = signal.convolve2d(reg, k)
-                 brojevi_crvena_linija.append(reg)
-                 #display_image(image_orig)
-                 #plt.figure()
+                 img_ero = cv2.erode(image_blur, kernel, iterations=1)
+                 img_open = cv2.dilate(img_ero, kernel, iterations=1)
+                 brojevi_crvena_linija.append(img_open)
              broj_piksela.append(y[-1])
             
         #selektovanje regiona koji prelaze preko zelene linije
@@ -397,9 +397,11 @@ for i in range(0,10):
         for reg in num1:
              x,y=hist(reg)
              if(abs(y[-1]-broj_piksela_minus[-1])>8 or abs(y[-1]-broj_piksela_minus[-2])>8):
-                 brojevi_zelena_linija.append(reg)
+                 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
                  image_blur = signal.convolve2d(reg, k)
-
+                 img_ero = cv2.erode(image_blur, kernel, iterations=1)
+                 img_open = cv2.dilate(img_ero, kernel, iterations=1)
+                 brojevi_zelena_linija.append(img_open)
              broj_piksela_minus.append(y[-1])
             
     cap.release()    
@@ -417,8 +419,6 @@ for i in range(0,10):
         rezultat_minus = ann.predict(np.array(prepare_for_ann(brojevi_zelena_linija),np.float32))
         minus=display_result(rezultat_minus,alphabet)
         print (minus) 
-        
-        
         rezultat=saberi(plus)+oduzmi(minus)
         
     print("Rezultat: ",rezultat)
